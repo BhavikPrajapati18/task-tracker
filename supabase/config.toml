@@ -1,0 +1,4 @@
+# Endpoint manually verifies the Supabase user JWT + admin role using getUser().
+# This avoids the legacy gateway JWT format limitation with new publishable keys.
+[functions.parse-tasks]
+verify_jwt = false
