@@ -379,3 +379,458 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .board-pagination { gap: 8px; }
   .pagination-button { min-height: 34px; }
 }
+
+
+/* =========================================
+   WORKBOARD — DARK MODE
+   ========================================= */
+
+.theme-toggle {
+  width: 35px;
+  height: 35px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  background: var(--panel);
+  color: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.theme-toggle:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+/* Theme colors */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0d1117;
+  --panel: #161c26;
+  --border: #2b3544;
+  --text: #edf2f8;
+  --muted: #9ca8b9;
+  --subtle: #aebacd;
+  --dark: #edf2f8;
+  --green: #52c59b;
+  --orange: #e4af61;
+  --red: #f07880;
+}
+
+html[data-theme="dark"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Main surfaces */
+
+html[data-theme="dark"] :is(
+  .sidebar,
+  .topbar,
+  .auth-card,
+  .stat-card,
+  .board-panel,
+  .task-card,
+  .modal,
+  .export-menu,
+  .getting-started,
+  .voice-dialog,
+  .voice-draft,
+  .module-overview,
+  .lms-overview,
+  .board-loading
+) {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] :is(
+  .auth-page,
+  .loading-page
+) {
+  background: var(--bg);
+}
+
+/* Sidebar */
+
+html[data-theme="dark"] .nav-item {
+  color: var(--subtle);
+}
+
+html[data-theme="dark"] .nav-item:hover {
+  background: #222d3d;
+  color: var(--text);
+}
+
+html[data-theme="dark"] .nav-item.nav-active {
+  background: #293548;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .nav-active svg {
+  color: #ffffff;
+}
+
+html[data-theme="dark"] :is(
+  .nav-label,
+  .nav-count,
+  .sidebar-empty,
+  .identity-text span,
+  .brand span
+) {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] :is(
+  .identity-avatar,
+  .user-role,
+  .count-badge,
+  .empty-icon,
+  .auth-card code
+) {
+  background: #273344;
+  color: #c4d0df;
+}
+
+html[data-theme="dark"] :is(
+  .brand-logo,
+  .auth-mark
+) {
+  background: #e4ebf5;
+  color: #111827;
+}
+
+/* Header */
+
+html[data-theme="dark"] .topbar-left strong {
+  color: var(--text);
+}
+
+html[data-theme="dark"] :is(
+  .topbar,
+  .secure-note,
+  .topbar-left,
+  .slash
+) {
+  color: var(--muted);
+}
+
+/* Buttons */
+
+html[data-theme="dark"] .btn-dark {
+  background: #e4ebf5;
+  color: #111827;
+}
+
+html[data-theme="dark"] .btn-dark:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+html[data-theme="dark"] .btn-light {
+  background: #202a38;
+  border-color: #344154;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .btn-light:hover:not(:disabled) {
+  background: #303d50;
+}
+
+html[data-theme="dark"] :is(
+  .icon-btn,
+  .tiny-icon
+) {
+  color: #aab7ca;
+}
+
+html[data-theme="dark"] :is(
+  .icon-btn:hover,
+  .tiny-icon:hover
+) {
+  background: #293548;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .btn-danger {
+  background: #42242b;
+  color: #ff9da5;
+  border-color: #65343d;
+}
+
+/* Forms and search */
+
+html[data-theme="dark"] :is(
+  .input,
+  .search-box,
+  .status-picker,
+  .pagination-button
+) {
+  background: #111925;
+  color: var(--text);
+  border-color: #344154;
+}
+
+html[data-theme="dark"] .search-box input {
+  background: transparent;
+  color: var(--text);
+}
+
+html[data-theme="dark"] :is(
+  .input::placeholder,
+  .search-box input::placeholder
+) {
+  color: #7f8da1;
+}
+
+html[data-theme="dark"] .input:focus {
+  border-color: #7185a1;
+  box-shadow: 0 0 0 3px #344154;
+}
+
+html[data-theme="dark"] :is(
+  .field-label,
+  .voice-draft-fields label,
+  .voice-notes-label,
+  .voice-lang-label
+) {
+  color: #c5d0df;
+}
+
+/* Task board */
+
+html[data-theme="dark"] .task-card:hover {
+  border-color: #53637b;
+}
+
+html[data-theme="dark"] :is(
+  .panel-heading,
+  .task-bottom,
+  .modal-top,
+  .modal-actions,
+  .voice-header,
+  .voice-review-head,
+  .voice-save-row,
+  .board-pagination,
+  .export-menu-label,
+  .module-role-tabs
+) {
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] :is(
+  .task-description,
+  .project-chip,
+  .date-chip,
+  .panel-heading-title span,
+  .stat-heading,
+  .stat-foot,
+  .page-intro p,
+  .section-title,
+  .empty-box p,
+  .pagination-summary,
+  .pagination-current,
+  .eyebrow
+) {
+  color: #a7b4c7;
+}
+
+html[data-theme="dark"] .section-title > span:last-child {
+  color: #8998ac;
+}
+
+html[data-theme="dark"] .status-pending {
+  background: #30394a;
+  color: #c0cad8;
+}
+
+html[data-theme="dark"] .status-in_progress {
+  background: #243a5a;
+  color: #9ac0ff;
+}
+
+html[data-theme="dark"] .status-waiting_approval {
+  background: #453520;
+  color: #f5c77d;
+}
+
+html[data-theme="dark"] .status-completed {
+  background: #1c4035;
+  color: #83dbb3;
+}
+
+/* Export dropdown */
+
+html[data-theme="dark"] :is(
+  .export-menu > button,
+  .export-project-list > button
+) {
+  color: var(--text);
+}
+
+html[data-theme="dark"] :is(
+  .export-menu > button:hover,
+  .export-project-list > button:hover
+) {
+  background: #293548;
+}
+
+html[data-theme="dark"] .export-menu button small {
+  color: var(--muted);
+}
+
+/* LMS module overview */
+
+html[data-theme="dark"] :is(
+  .module-progress,
+  .module-role-empty,
+  .lms-overview-stats
+) {
+  background: #111925;
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .module-card {
+  background: #1b2532;
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .module-progress-track {
+  background: #344154;
+}
+
+html[data-theme="dark"] .module-progress-stats b {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .module-role-tab.selected {
+  color: var(--text);
+  border-bottom-color: #e4ebf5;
+}
+
+html[data-theme="dark"] .module-role-tab span {
+  background: #303e52;
+  color: #c7d2e2;
+}
+
+html[data-theme="dark"] .module-role-empty strong {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .module-task-tag {
+  background: #293d59;
+  color: #b2ccf3;
+}
+
+html[data-theme="dark"] :is(
+  .module-heading p,
+  .module-task-count,
+  .module-linked-tasks,
+  .module-progress-stats,
+  .module-progress-note,
+  .lms-overview-stats > span
+) {
+  color: #a7b4c7;
+}
+
+html[data-theme="dark"] .module-state-not_started {
+  background: #30394a;
+  color: #c0cad8;
+}
+
+html[data-theme="dark"] .module-state-in_progress {
+  background: #243a5a;
+  color: #9ac0ff;
+}
+
+html[data-theme="dark"] .module-state-completed {
+  background: #1c4035;
+  color: #83dbb3;
+}
+
+/* LMS preview */
+
+html[data-theme="dark"] .stat-link:hover {
+  background: #202b3b;
+}
+
+html[data-theme="dark"] .lms-preview-more {
+  background: var(--panel);
+  color: #c4d0df;
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .lms-preview-more:hover {
+  background: #263345;
+}
+
+html[data-theme="dark"] .lms-overview-heading p {
+  color: #a7b4c7;
+}
+
+/* Voice Assistant */
+
+html[data-theme="dark"] .voice-header-icon {
+  background: #293548;
+  color: #dbe5f2;
+}
+
+html[data-theme="dark"] .voice-draft-off {
+  background: #1c2634;
+}
+
+html[data-theme="dark"] :is(
+  .voice-header p,
+  .voice-helper,
+  .voice-review-head p,
+  .voice-interim,
+  .voice-section-head > span,
+  .voice-save-row span
+) {
+  color: #a7b4c7;
+}
+
+html[data-theme="dark"] .voice-success {
+  background: #1c4035;
+  color: #83dbb3;
+}
+
+/* Notices */
+
+html[data-theme="dark"] .access-notice {
+  background: #202d3d;
+  border-color: #344154;
+  color: #bdcadd;
+}
+
+html[data-theme="dark"] .error-alert {
+  background: #44242b;
+  border-color: #6a3640;
+  color: #ffb4bc;
+}
+
+/* Pagination */
+
+html[data-theme="dark"] .pagination-button:hover:not(:disabled) {
+  background: #293548;
+  border-color: #52627a;
+}
+
+html[data-theme="dark"] .pagination-button:disabled {
+  background: #1b2532;
+  color: #69778b;
+}
+
+/* Responsive toggle */
+
+@media (max-width: 690px) {
+  .theme-toggle {
+    width: 33px;
+    height: 33px;
+  }
+}
