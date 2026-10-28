@@ -285,3 +285,97 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .voice-save-row { flex-wrap: wrap; }
 }
 @media (max-width: 390px) { .voice-draft-fields { grid-template-columns: 1fr; } }
+
+/* v1.3 — module tracking for product projects (LMS) */
+.module-overview { margin: 0 0 30px; padding: 24px; background: #fff; border: 1px solid var(--border); border-radius: 13px; }
+.module-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.module-heading h2 { font-size: 20px; letter-spacing: -.5px; margin: 8px 0 6px; }
+.module-heading p { margin: 0; font-size: 12px; line-height: 1.6; color: #8b909d; }
+.module-priority { flex-shrink: 0; font-size: 11px; color: #9b4a55; background: #fff3f4; border-radius: 7px; padding: 8px 10px; font-weight: 700; text-transform: capitalize; }
+.module-role-tabs { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #eceef2; margin-top: 23px; overflow-x: auto; }
+.module-role-tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 12px 14px; background: transparent; color: #9096a1; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.module-role-tab.selected { color: #222733; border-bottom-color: #222733; }
+.module-role-tab span { background: #f0f1f4; color: #606877; border-radius: 5px; padding: 2px 6px; font-size: 10px; }
+.module-progress { background: #f8f9fb; border: 1px solid #f0f1f5; padding: 18px; border-radius: 11px; margin: 20px 0; }
+.module-progress-top { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.module-progress-top span { color: #858b98; }
+.module-progress-track { margin: 13px 0; height: 7px; background: #e7e9ed; overflow: hidden; border-radius: 10px; }
+.module-progress-fill { background: #3e9273; height: 100%; border-radius: inherit; transition: width .25s ease; }
+.module-progress-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 11px; color: #858c9b; }
+.module-progress-stats b { color: #343c48; }
+.module-progress-note { color: #a2a6b0; margin: 11px 0 0; font-size: 10px; line-height: 1.5; }
+.module-cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 13px; }
+.module-card { border: 1px solid #edf0f3; border-radius: 10px; padding: 17px; min-width: 0; display: flex; flex-direction: column; }
+.module-card-top { display: flex; justify-content: space-between; align-items: center; min-height: 20px; }
+.module-state { border-radius: 5px; padding: 5px 7px; font-size: 10px; font-weight: 750; display: inline-flex; align-items: center; gap: 5px; }
+.module-state-completed { background: #eaf8ef; color: #287852; }
+.module-state-in_progress { background: #edf2ff; color: #5070ae; }
+.module-state-not_started { background: #f1f2f5; color: #838996; }
+.module-card h3 { font-size: 14px; letter-spacing: -.2px; margin: 14px 0 5px; }
+.module-task-count { color: #9ca2ac; font-size: 11px; }
+.module-linked-tasks { padding-left: 15px; margin: 14px 0 0; color: #717886; font-size: 11px; line-height: 1.5; }
+.module-linked-tasks li { margin-bottom: 7px; }
+.module-linked-tasks li small { margin-left: 8px; color: #adb1ba; }
+.module-card-actions { margin-top: auto; padding-top: 18px; display: flex; align-items: flex-end; gap: 9px; flex-wrap: wrap; }
+.module-status-input { display: flex; flex: 1; flex-direction: column; gap: 6px; font-size: 10px; color: #89909d; font-weight: 700; min-width: 130px; }
+.module-status-input .input { font-size: 11px; padding: 9px 8px; }
+.module-card-actions .btn { min-height: 36px; }
+.module-role-empty { border: 1px dashed #e4e7ed; background: #fcfcfd; border-radius: 10px; margin: 20px 0; padding: 35px 15px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; color: #9399a5; }
+.module-role-empty strong { color: #4d5462; font-size: 13px; }
+.module-role-empty p { max-width: 300px; margin: 0; font-size: 12px; line-height: 1.6; }
+.module-error { margin: 15px 0 0; }
+.module-add-area { margin-top: 17px; display: flex; justify-content: flex-end; }
+.module-add-form { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; }
+.module-add-form .input { flex: 1; min-width: 190px; }
+.module-task-tag { display: inline-flex; color: #616e87; background: #f0f3fa; padding: 4px 7px; border-radius: 5px; font-size: 10px; font-weight: 650; }
+@media (max-width: 700px) {
+  .module-overview { padding: 16px; }
+  .module-heading { flex-direction: column; }
+  .module-cards { grid-template-columns: 1fr; }
+  .module-progress-top { flex-direction: column; }
+  .module-progress-stats { gap: 9px 14px; }
+}
+
+/* v1.4 — keep LMS development separate from client delivery tasks */
+.summary-grid-five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.stat-link { appearance: none; text-align: left; font: inherit; cursor: pointer; width: 100%; transition: border-color .15s, background .15s; }
+.stat-link:hover { border-color: #bbc5d5; background: #fbfcfe; }
+.stat-link .stat-foot { display: inline-flex; gap: 5px; align-items: center; }
+.lms-overview { margin-top: 34px; border: 1px solid var(--border); background: #fff; border-radius: 13px; overflow: hidden; }
+.lms-overview-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 23px 24px 16px; }
+.lms-overview-heading .eyebrow { margin-bottom: 10px; }
+.lms-overview-heading .workspace-heading { margin-bottom: 5px; }
+.lms-overview-heading p { margin: 0; color: #9ba1ae; font-size: 11px; }
+.lms-overview-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; padding: 12px 24px; border-top: 1px solid #f0f1f4; border-bottom: 1px solid #f0f1f4; background: #fafbfd; }
+.lms-overview-stats > span { display: inline-flex; align-items: center; gap: 7px; font-weight: 650; font-size: 11px; color: #777f8f; }
+.lms-overview-stats svg { color: #a7adbb; }
+.lms-preview-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px 24px; }
+.lms-preview-list .task-card { min-width: 0; }
+.lms-preview-list .empty-box { grid-column: 1 / -1; }
+.lms-preview-more { display: flex; width: 100%; justify-content: center; align-items: center; gap: 6px; padding: 15px; border: 0; border-top: 1px solid #eff0f4; background: #fff; color: #636b7d; font-size: 12px; font-weight: 700; }
+.lms-preview-more:hover { background: #f7f8fa; }
+@media (max-width: 1180px) {
+  .summary-grid-five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 940px) {
+  .summary-grid-five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 690px) {
+  .lms-overview-heading { align-items: flex-start; flex-direction: column; padding: 19px 16px 16px; }
+  .lms-overview-stats { padding-inline: 16px; gap: 10px; }
+  .lms-preview-list { grid-template-columns: minmax(0, 1fr); padding: 14px 16px; }
+}
+
+/* Workboard v1.5: compact pagination for client task panels */
+.board-pagination { margin-top: 16px; padding-top: 13px; border-top: 1px solid #edf0f3; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pagination-summary { font-size: 11px; font-weight: 500; color: #969dac; }
+.pagination-controls { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; }
+.pagination-button { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-height: 31px; padding: 0 8px; border: 1px solid #e7e9ef; border-radius: 7px; background: #fff; font-size: 11px; font-weight: 650; color: #515968; cursor: pointer; }
+.pagination-button:hover:not(:disabled) { border-color: #bbc2ce; background: #f8f9fb; }
+.pagination-button:focus-visible { outline: 2px solid #6679a4; outline-offset: 2px; }
+.pagination-button:disabled { cursor: not-allowed; color: #c5c8cf; background: #f9f9fa; }
+.pagination-current { font-size: 11px; color: #697180; font-variant-numeric: tabular-nums; padding: 0 6px; white-space: nowrap; }
+@media (max-width: 690px) {
+  .board-pagination { gap: 8px; }
+  .pagination-button { min-height: 34px; }
+}

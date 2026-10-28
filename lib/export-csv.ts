@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { priorityText, sortTasks, statusText } from "@/lib/helpers";
-import type { Project, Task } from "@/lib/types";
+import type { Project, ProjectModule, Task } from "@/lib/types";
 
 const PAGE_SIZE = 1000;
 
@@ -29,16 +29,19 @@ function csvCell(value: string | number | null | undefined): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export function createTaskCsv(tasks: Task[], projects: Project[]): string {
+export function createTaskCsv(tasks: Task[], projects: Project[], modules: ProjectModule[] = []): string {
   const projectNameById = new Map(projects.map(project => [project.id, project.name]));
+  const moduleById = new Map(modules.map(module => [module.id, module]));
   const lines: (string | number | null | undefined)[][] = [
-    ["Project", "Task", "Priority", "Status", "Due Date", "Estimated Hours", "Notes", "Created At", "Updated At", "Completed At", "Task ID"],
+    ["Project", "Task", "Role", "Module", "Priority", "Status", "Due Date", "Estimated Hours", "Notes", "Created At", "Updated At", "Completed At", "Task ID"],
   ];
 
   for (const task of sortTasks(tasks)) {
     lines.push([
       projectNameById.get(task.project_id) ?? "Unknown project",
       task.title,
+      task.module_id ? moduleById.get(task.module_id)?.role ?? "" : "",
+      task.module_id ? moduleById.get(task.module_id)?.name ?? "" : "",
       priorityText[task.priority],
       statusText[task.status],
       task.due_date,
@@ -56,13 +59,13 @@ export function createTaskCsv(tasks: Task[], projects: Project[]): string {
 }
 
 /** The export contains all statuses, including approvals and completed tasks. */
-export function downloadTaskCsv(tasks: Task[], projects: Project[], filename: string): void {
+export function downloadTaskCsv(tasks: Task[], projects: Project[], filename: string, modules: ProjectModule[] = []): void {
   const safeFilename = filename
     .normalize("NFKD")
     .replace(/[^a-zA-Z0-9._-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^[.-]+|[.-]+$/g, "") || "tasks.csv";
-  const blob = new Blob([createTaskCsv(tasks, projects)], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([createTaskCsv(tasks, projects, modules)], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

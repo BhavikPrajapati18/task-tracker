@@ -5,19 +5,21 @@ import type { Session } from "@supabase/supabase-js";
 import {
   AlertCircle, ArrowRight, CalendarDays, Check, CheckCircle2, Clock3, Folder,
   FolderPlus, LayoutDashboard, ListTodo, Loader2, LogOut, Menu, MoreHorizontal,
-  Pencil, Plus, Search, ShieldCheck, Trash2, X, Download, ChevronDown, Mic,
+  Pencil, Plus, Search, ShieldCheck, Trash2, X, Download, ChevronDown, ChevronLeft, ChevronRight, Mic,
 } from "lucide-react";
 import { isConfigured, supabase } from "@/lib/supabase";
 import VoiceAssistant from "@/components/voice-assistant";
+import ModuleOverview from "@/components/module-overview";
 import { downloadTaskCsv, fetchTasksForCsv } from "@/lib/export-csv";
-import type { Priority, Project, Task, TaskInput, TaskStatus, UserRole } from "@/lib/types";
+import type { Priority, Project, ProjectModule, Task, TaskInput, TaskStatus, UserRole } from "@/lib/types";
 import { localDateKey, priorityText, PRIORITIES, readableDate, sortTasks, STATUSES, statusText } from "@/lib/helpers";
 
 type TabId = "all" | string;
 type LoadError = string | null;
 
-const defaultTask = (projectId: string): TaskInput => ({
+const defaultTask = (projectId: string, moduleId = ""): TaskInput => ({
   project_id: projectId,
+  module_id: moduleId,
   title: "",
   description: "",
   priority: "medium",
@@ -98,22 +100,25 @@ function Modal({ children, title, onClose }: { children: React.ReactNode; title:
   );
 }
 
-function TaskDialog({ initial, projects, onClose, onSave, onDelete }: {
+function TaskDialog({ initial, projects, modules, preferredModuleId, onClose, onSave, onDelete }: {
   initial: Task | null;
   projects: Project[];
+  modules: ProjectModule[];
+  preferredModuleId?: string;
   onClose: () => void;
   onSave: (input: TaskInput, existing: Task | null) => Promise<string | null>;
   onDelete: (task: Task) => Promise<string | null>;
 }) {
   const [form, setForm] = useState<TaskInput>(() => initial ? {
     project_id: initial.project_id,
+    module_id: initial.module_id ?? "",
     title: initial.title,
     description: initial.description ?? "",
     priority: initial.priority,
     status: initial.status,
     due_date: initial.due_date ?? "",
     estimated_hours: initial.estimated_hours?.toString() ?? "",
-  } : defaultTask(projects[0]?.id ?? ""));
+  } : defaultTask(projects[0]?.id ?? "", preferredModuleId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = <K extends keyof TaskInput>(key: K, value: TaskInput[K]) => setForm(prev => ({ ...prev, [key]: value }));
@@ -139,10 +144,21 @@ function TaskDialog({ initial, projects, onClose, onSave, onDelete }: {
           <input className="input" required maxLength={200} autoFocus placeholder="What needs to be done?" value={form.title} onChange={e => set("title", e.target.value)} />
         </label>
         <label className="field-label">Project *
-          <select className="input" value={form.project_id} required onChange={e => set("project_id", e.target.value)}>
+          <select className="input" value={form.project_id} required onChange={e => setForm(previous => ({ ...previous, project_id: e.target.value, module_id: "" }))}>
             {projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
           </select>
         </label>
+        {modules.some(module => module.project_id === form.project_id) &&
+          <label className="field-label">Module (optional)
+            <select className="input" value={form.module_id} onChange={e => set("module_id", e.target.value)}>
+              <option value="">Unassigned to a module</option>
+              {modules.filter(module => module.project_id === form.project_id)
+                .sort((a, b) => a.role.localeCompare(b.role) || a.sort_order - b.sort_order)
+                .map(module => <option key={module.id} value={module.id}>
+                  {module.role.charAt(0).toUpperCase() + module.role.slice(1)} / {module.name}
+                </option>)}
+            </select>
+          </label>}
         <div className="form-grid">
           <label className="field-label">Priority
             <select className="input" value={form.priority} onChange={e => set("priority", e.target.value as Priority)}>
@@ -179,17 +195,18 @@ function TaskDialog({ initial, projects, onClose, onSave, onDelete }: {
 function ProjectDialog({ initial, onClose, onSave, onDelete }: {
   initial: Project | null;
   onClose: () => void;
-  onSave: (input: { name: string; description: string }, existing: Project | null) => Promise<string | null>;
+  onSave: (input: { name: string; description: string; priority: Priority }, existing: Project | null) => Promise<string | null>;
   onDelete: (project: Project) => Promise<string | null>;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [priority, setPriority] = useState<Priority>(initial?.priority ?? "medium");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true); setError("");
-    const message = await onSave({ name: name.trim(), description: description.trim() }, initial);
+    const message = await onSave({ name: name.trim(), description: description.trim(), priority }, initial);
     if (message) { setError(message); setBusy(false); } else onClose();
   }
   async function remove() {
@@ -207,6 +224,11 @@ function ProjectDialog({ initial, onClose, onSave, onDelete }: {
         <label className="field-label">Description
           <textarea className="input textarea" rows={3} placeholder="Optional project details" value={description} onChange={e => setDescription(e.target.value)} />
         </label>
+        <label className="field-label">Project priority
+          <select className="input" value={priority} onChange={e => setPriority(e.target.value as Priority)}>
+            {PRIORITIES.map(value => <option key={value} value={value}>{priorityText[value]}</option>)}
+          </select>
+        </label>
         {error && <div role="alert" className="alert error-alert"><AlertCircle size={16} />{error}</div>}
         <div className="modal-actions">
           {initial && <button type="button" className="btn btn-danger" disabled={busy} onClick={remove}><Trash2 size={15} /> Delete project</button>}
@@ -219,9 +241,10 @@ function ProjectDialog({ initial, onClose, onSave, onDelete }: {
   );
 }
 
-function TaskCard({ task, projectName, editable, onEdit, onStatusChange, compact = false }: {
+function TaskCard({ task, projectName, moduleName, editable, onEdit, onStatusChange, compact = false }: {
   task: Task;
   projectName: string;
+  moduleName?: string;
   editable: boolean;
   onEdit: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
@@ -240,6 +263,7 @@ function TaskCard({ task, projectName, editable, onEdit, onStatusChange, compact
       {!compact && task.description && <p className="task-description">{task.description}</p>}
       <div className="task-meta">
         <span className="project-chip"><Folder size={13} />{projectName}</span>
+        {moduleName && <span className="module-task-tag">{moduleName}</span>}
         <span className={`status-tag status-${task.status}`}>{statusText[task.status]}</span>
         {task.due_date && <span className={`date-chip ${overdue ? "overdue" : ""}`}><CalendarDays size={13} />{readableDate(task.due_date)}{overdue ? " · Overdue" : ""}</span>}
         {task.estimated_hours !== null && !compact && <span className="date-chip"><Clock3 size={13} />{task.estimated_hours}h</span>}
@@ -261,6 +285,38 @@ function EmptyBox({ title, detail }: { title: string; detail: string }) {
   return <div className="empty-box"><div className="empty-icon"><ListTodo size={20} /></div><strong>{title}</strong><p>{detail}</p></div>;
 }
 
+// Pagination is strictly a presentation concern: all tasks remain loaded for counts,
+// search, realtime updates and CSV export. Keep the LMS project board untouched.
+const ACTIVE_PAGE_SIZE = 4;
+const SIDE_PAGE_SIZE = 3;
+
+function BoardPagination({ label, page, total, pageSize, onChange }: {
+  label: string;
+  page: number;
+  total: number;
+  pageSize: number;
+  onChange: (page: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) return null;
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  return (
+    <nav className="board-pagination" aria-label={`${label} pagination`}>
+      <span className="pagination-summary">Showing {start}–{end} of {total}</span>
+      <div className="pagination-controls">
+        <button type="button" className="pagination-button" onClick={() => onChange(page - 1)} disabled={page <= 1} aria-label={`Previous ${label} page`}>
+          <ChevronLeft size={15} /> <span>Prev</span>
+        </button>
+        <span className="pagination-current" aria-live="polite">{page} / {totalPages}</span>
+        <button type="button" className="pagination-button" onClick={() => onChange(page + 1)} disabled={page >= totalPages} aria-label={`Next ${label} page`}>
+          <span>Next</span> <ChevronRight size={15} />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 export default function TrackerApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -268,11 +324,15 @@ export default function TrackerApp() {
   const [roleLoading, setRoleLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [modules, setModules] = useState<ProjectModule[]>([]);
   const [loadError, setLoadError] = useState<LoadError>(null);
   const [busyLoading, setBusyLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("all");
   const [search, setSearch] = useState("");
-  const [taskDialog, setTaskDialog] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
+  const [activePage, setActivePage] = useState(1);
+  const [approvalPage, setApprovalPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [taskDialog, setTaskDialog] = useState<{ open: boolean; task: Task | null; moduleId?: string }>({ open: false, task: null });
   const [projectDialog, setProjectDialog] = useState<{ open: boolean; project: Project | null }>({ open: false, project: null });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -317,15 +377,17 @@ export default function TrackerApp() {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [projectResponse, taskResponse] = await Promise.all([
+    const [projectResponse, taskResponse, moduleResponse] = await Promise.all([
       supabase.from("projects").select("*").order("name"),
       supabase.from("tasks").select("*"),
+      supabase.from("project_modules").select("*").order("sort_order"),
     ]);
-    if (projectResponse.error || taskResponse.error) {
-      setLoadError(projectResponse.error?.message ?? taskResponse.error?.message ?? "Unable to load data");
+    if (projectResponse.error || taskResponse.error || moduleResponse.error) {
+      setLoadError(projectResponse.error?.message ?? taskResponse.error?.message ?? moduleResponse.error?.message ?? "Unable to load data");
     } else {
       setProjects((projectResponse.data ?? []) as Project[]);
       setTasks((taskResponse.data ?? []) as Task[]);
+      setModules((moduleResponse.data ?? []) as ProjectModule[]);
       setLoadError(null);
     }
     setBusyLoading(false);
@@ -333,7 +395,7 @@ export default function TrackerApp() {
 
   useEffect(() => {
     if (!session?.user.id) {
-      setRole(null); setRoleLoading(false); setBusyLoading(false); setProjects([]); setTasks([]);
+      setRole(null); setRoleLoading(false); setBusyLoading(false); setProjects([]); setTasks([]); setModules([]);
       return;
     }
     let active = true;
@@ -357,25 +419,85 @@ export default function TrackerApp() {
     const channel = supabase.channel(`tracker-sync-${session.user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => { void refresh(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, () => { void refresh(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "project_modules" }, () => { void refresh(); })
       .subscribe();
     const onFocus = () => { void refresh(); };
     window.addEventListener("focus", onFocus);
     return () => { window.removeEventListener("focus", onFocus); void supabase.removeChannel(channel); };
   }, [session?.user.id, role, refresh]);
 
+  // The LMS backlog is intentionally kept separate from client delivery work.
+  const lmsProject = useMemo(() => projects.find(project => project.name.trim().toLowerCase() === "lms"), [projects]);
+  const isMaster = activeTab === "all";
+  const isLmsPage = Boolean(lmsProject && activeTab === lmsProject.id);
+  const projectTaskCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const task of tasks) counts.set(task.project_id, (counts.get(task.project_id) ?? 0) + 1);
+    return counts;
+  }, [tasks]);
+  const sortedClientProjects = useMemo(() => projects
+    .filter(project => project.id !== lmsProject?.id)
+    .sort((a, b) => {
+      // Projects with at least one task first; empty projects last.
+      const aHasTasks = (projectTaskCounts.get(a.id) ?? 0) > 0;
+      const bHasTasks = (projectTaskCounts.get(b.id) ?? 0) > 0;
+      if (aHasTasks !== bHasTasks) return aHasTasks ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    }), [projects, lmsProject?.id, projectTaskCounts]);
+  const lmsTasks = useMemo(() => tasks.filter(task => task.project_id === lmsProject?.id), [tasks, lmsProject?.id]);
+  const lmsActiveTasks = useMemo(() => sortTasks(lmsTasks.filter(task => task.status === "pending" || task.status === "in_progress")), [lmsTasks]);
+  const lmsWaitingCount = lmsTasks.filter(task => task.status === "waiting_approval").length;
+  const lmsCompletedCount = lmsTasks.filter(task => task.status === "completed").length;
+  const clientTaskCount = tasks.length - lmsTasks.length;
+
   const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p.name])), [projects]);
+  const moduleMap = useMemo(() => new Map(modules.map(module => [module.id,
+    `${module.role.charAt(0).toUpperCase() + module.role.slice(1)} / ${module.name}`])), [modules]);
   const visibleTasks = useMemo(() => tasks.filter(task => {
-    if (activeTab !== "all" && task.project_id !== activeTab) return false;
+    if (isMaster && lmsProject && task.project_id === lmsProject.id) return false;
+    if (!isMaster && task.project_id !== activeTab) return false;
     if (!search.trim()) return true;
     const query = search.toLowerCase().trim();
-    return `${task.title} ${task.description ?? ""} ${projectMap.get(task.project_id) ?? ""}`.toLowerCase().includes(query);
-  }), [tasks, activeTab, search, projectMap]);
+    return `${task.title} ${task.description ?? ""} ${projectMap.get(task.project_id) ?? ""} ${task.module_id ? moduleMap.get(task.module_id) ?? "" : ""}`.toLowerCase().includes(query);
+  }), [tasks, activeTab, isMaster, lmsProject, search, projectMap, moduleMap]);
   const activeTasks = useMemo(() => sortTasks(visibleTasks.filter(task => task.status === "pending" || task.status === "in_progress")), [visibleTasks]);
   const approvalTasks = useMemo(() => sortTasks(visibleTasks.filter(task => task.status === "waiting_approval")), [visibleTasks]);
   const completedTasks = useMemo(() => [...visibleTasks.filter(task => task.status === "completed")]
     .sort((a, b) => (b.completed_at ?? b.updated_at).localeCompare(a.completed_at ?? a.updated_at)), [visibleTasks]);
+  // The normal client-task panels are paginated; LMS project view keeps its
+  // existing full module/task board and the Master LMS preview remains unchanged.
+  const paginateClientBoard = !isLmsPage;
+  const activePageCount = Math.max(1, Math.ceil(activeTasks.length / ACTIVE_PAGE_SIZE));
+  const approvalPageCount = Math.max(1, Math.ceil(approvalTasks.length / SIDE_PAGE_SIZE));
+  const completedPageCount = Math.max(1, Math.ceil(completedTasks.length / SIDE_PAGE_SIZE));
+  const currentActivePage = Math.min(activePage, activePageCount);
+  const currentApprovalPage = Math.min(approvalPage, approvalPageCount);
+  const currentCompletedPage = Math.min(completedPage, completedPageCount);
+  const shownActiveTasks = paginateClientBoard
+    ? activeTasks.slice((currentActivePage - 1) * ACTIVE_PAGE_SIZE, currentActivePage * ACTIVE_PAGE_SIZE)
+    : activeTasks;
+  const shownApprovalTasks = paginateClientBoard
+    ? approvalTasks.slice((currentApprovalPage - 1) * SIDE_PAGE_SIZE, currentApprovalPage * SIDE_PAGE_SIZE)
+    : approvalTasks;
+  const shownCompletedTasks = paginateClientBoard
+    ? completedTasks.slice((currentCompletedPage - 1) * SIDE_PAGE_SIZE, currentCompletedPage * SIDE_PAGE_SIZE)
+    : completedTasks;
+
+  // Start from page 1 after changing project or searching. When realtime
+  // updates reduce a list, clamp its page instead of showing an empty panel.
+  useEffect(() => {
+    setActivePage(1);
+    setApprovalPage(1);
+    setCompletedPage(1);
+  }, [activeTab, search]);
+  useEffect(() => { setActivePage(p => Math.min(p, activePageCount)); }, [activePageCount]);
+  useEffect(() => { setApprovalPage(p => Math.min(p, approvalPageCount)); }, [approvalPageCount]);
+  useEffect(() => { setCompletedPage(p => Math.min(p, completedPageCount)); }, [completedPageCount]);
+
   const selectedProject = projects.find(p => p.id === activeTab);
-  const scopedTasks = tasks.filter(t => activeTab === "all" || t.project_id === activeTab);
+  const scopedTasks = isMaster
+    ? tasks.filter(task => task.project_id !== lmsProject?.id)
+    : tasks.filter(task => task.project_id === activeTab);
   const taskCount = scopedTasks.filter(t => t.status === "pending" || t.status === "in_progress").length;
   const dueToday = scopedTasks.filter(t => t.due_date === localDateKey() && t.status !== "completed").length;
   const overdueCount = scopedTasks.filter(t => t.due_date && t.due_date < localDateKey() && t.status !== "completed").length;
@@ -386,8 +508,12 @@ export default function TrackerApp() {
     if (!trimmed || !input.project_id) return "Please enter a title and select a project.";
     const hours = input.estimated_hours.trim() ? Number(input.estimated_hours) : null;
     if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > 9999.99)) return "Estimated hours must be between 0 and 9999.99.";
+    if (input.module_id && !modules.some(module => module.id === input.module_id && module.project_id === input.project_id)) {
+      return "Selected module does not belong to this project.";
+    }
     const payload = {
       project_id: input.project_id,
+      module_id: input.module_id || null,
       title: trimmed,
       description: input.description.trim() || null,
       priority: input.priority,
@@ -422,10 +548,10 @@ export default function TrackerApp() {
     else await refresh();
   }
 
-  async function saveProject(input: { name: string; description: string }, initial: Project | null): Promise<string | null> {
+  async function saveProject(input: { name: string; description: string; priority: Priority }, initial: Project | null): Promise<string | null> {
     if (!editable) return "Only admins can edit projects.";
     if (!input.name) return "Project name is required.";
-    const payload = { name: input.name, description: input.description || null };
+    const payload = { name: input.name, description: input.description || null, priority: input.priority };
     const { error } = initial
       ? await supabase.from("projects").update(payload).eq("id", initial.id)
       : await supabase.from("projects").insert(payload);
@@ -448,7 +574,7 @@ export default function TrackerApp() {
     setTaskDialog({ open: true, task: null });
   };
 
-  async function exportCsv(project: Project | null) {
+  async function exportCsv(project: Project | null, scope: "all" | "clients" = "all") {
     if (exporting) return;
     setExportOpen(false);
     setExportError(null);
@@ -457,10 +583,13 @@ export default function TrackerApp() {
       // Fetch directly from Supabase so exports include every status and task,
       // including records not present in the currently visible/search-filtered board.
       const exportRows = await fetchTasksForCsv(project?.id);
+      const rows = scope === "clients" && lmsProject
+        ? exportRows.filter(task => task.project_id !== lmsProject.id)
+        : exportRows;
       const filename = project
         ? `${project.name}-tasks-${localDateKey()}.csv`
-        : `all-projects-tasks-${localDateKey()}.csv`;
-      downloadTaskCsv(exportRows, projects, filename);
+        : scope === "clients" ? `client-projects-tasks-${localDateKey()}.csv` : `all-projects-tasks-${localDateKey()}.csv`;
+      downloadTaskCsv(rows, projects, filename, modules);
     } catch (error) {
       setExportError(error instanceof Error ? error.message : "Unable to export tasks. Please try again.");
     } finally {
@@ -485,20 +614,23 @@ export default function TrackerApp() {
         <div className="brand"><div className="brand-logo"><ListTodo size={21} /></div><div><strong>Workboard</strong><span>Project management</span></div></div>
         <div className="nav-group">
           <div className="nav-label">WORKSPACE</div>
-          <button onClick={() => { setActiveTab("all"); setSidebarOpen(false); }} className={`nav-item ${activeTab === "all" ? "nav-active" : ""}`}>
-            <LayoutDashboard size={17} /><span>Master dashboard</span><span className="nav-count">{tasks.length}</span>
+          <button onClick={() => { setActiveTab("all"); setSearch(""); setSidebarOpen(false); }} className={`nav-item ${activeTab === "all" ? "nav-active" : ""}`}>
+            <LayoutDashboard size={17} /><span>Master dashboard</span><span className="nav-count">{clientTaskCount}</span>
           </button>
+          {lmsProject && <button onClick={() => { setActiveTab(lmsProject.id); setSearch(""); setSidebarOpen(false); }} className={`nav-item ${isLmsPage ? "nav-active" : ""}`}>
+            <ListTodo size={17} /><span>LMS</span><span className="nav-count">{lmsTasks.length}</span>
+          </button>}
         </div>
         <div className="nav-group nav-projects">
           <div className="nav-heading"><span className="nav-label">YOUR PROJECTS</span>
             {editable && <button title="Add project" aria-label="Add project" className="tiny-icon" onClick={() => setProjectDialog({ open: true, project: null })}><Plus size={16} /></button>}
           </div>
-          {projects.map(project => (
-            <button key={project.id} onClick={() => { setActiveTab(project.id); setSidebarOpen(false); }} className={`nav-item ${activeTab === project.id ? "nav-active" : ""}`}>
-              <Folder size={17} /><span className="ellipsis">{project.name}</span><span className="nav-count">{tasks.filter(t => t.project_id === project.id && t.status !== "completed").length}</span>
+          {sortedClientProjects.map(project => (
+            <button key={project.id} onClick={() => { setActiveTab(project.id); setSearch(""); setSidebarOpen(false); }} className={`nav-item ${activeTab === project.id ? "nav-active" : ""}`}>
+              <Folder size={17} /><span className="ellipsis">{project.name}</span><span className="nav-count">{projectTaskCounts.get(project.id) ?? 0}</span>
             </button>
           ))}
-          {!projects.length && <p className="sidebar-empty">No projects yet.</p>}
+          {!sortedClientProjects.length && <p className="sidebar-empty">No client projects yet.</p>}
           {editable && <button className="nav-item add-project-link" onClick={() => setProjectDialog({ open: true, project: null })}><FolderPlus size={17} /><span>Add project</span></button>}
         </div>
         <div className="sidebar-bottom"><div className="identity-avatar">{(session.user.email ?? "U").charAt(0).toUpperCase()}</div>
@@ -516,9 +648,9 @@ export default function TrackerApp() {
 
         <div className="content">
           <div className="page-intro"><div>
-            <div className="eyebrow">{activeTab === "all" ? "ALL PROJECTS" : "PROJECT OVERVIEW"}</div>
+            <div className="eyebrow">{activeTab === "all" ? "CLIENT PROJECTS + LMS" : "PROJECT OVERVIEW"}</div>
             <h1>{selectedProject?.name ?? "Master Dashboard"}</h1>
-            <p>{selectedProject?.description || (activeTab === "all" ? "All your tasks, priorities and approvals in one clear view." : "Keep track of everything that needs to get done.")}</p>
+            <p>{selectedProject?.description || (activeTab === "all" ? "Client project tasks and LMS development tracked separately." : "Keep track of everything that needs to get done.")}</p>
           </div><div className="page-actions">
             {editable && <button className="btn btn-light" onClick={() => setProjectDialog({ open: true, project: null })}><FolderPlus size={16} /> Add project</button>}
             {editable && selectedProject && <button className="btn btn-light" onClick={() => setProjectDialog({ open: true, project: selectedProject })}><MoreHorizontal size={16} /> Project settings</button>}
@@ -531,12 +663,14 @@ export default function TrackerApp() {
                 {exporting ? "Exporting..." : "Export CSV"}<ChevronDown size={14} />
               </button>
               {exportOpen && <div id="csv-export-options" className="export-menu" role="group" aria-label="CSV export options">
-                <button type="button" onClick={() => void exportCsv(null)}><Download size={15} /><span>All projects CSV<small>Every task, every status</small></span></button>
-                {selectedProject && <button type="button" onClick={() => void exportCsv(selectedProject)}><Folder size={15} /><span>{selectedProject.name} CSV<small>Only this project</small></span></button>}
-                {!selectedProject && projects.length > 0 && <>
-                  <div className="export-menu-label">EXPORT ONE PROJECT</div>
+                <button type="button" onClick={() => void exportCsv(null, "clients")}><Download size={15} /><span>Client projects CSV<small>Excludes LMS tasks</small></span></button>
+                {lmsProject && <button type="button" onClick={() => void exportCsv(lmsProject)}><ListTodo size={15} /><span>LMS CSV<small>Only LMS tasks</small></span></button>}
+                <button type="button" onClick={() => void exportCsv(null)}><Download size={15} /><span>Everything CSV<small>Client projects + LMS</small></span></button>
+                {selectedProject && !isLmsPage && <button type="button" onClick={() => void exportCsv(selectedProject)}><Folder size={15} /><span>{selectedProject.name} CSV<small>Only this project</small></span></button>}
+                {!selectedProject && sortedClientProjects.length > 0 && <>
+                  <div className="export-menu-label">EXPORT ONE CLIENT PROJECT</div>
                   <div className="export-project-list">
-                    {projects.map(project => <button type="button" key={project.id} onClick={() => void exportCsv(project)}>
+                    {sortedClientProjects.map(project => <button type="button" key={project.id} onClick={() => void exportCsv(project)}>
                       <Folder size={15}/><span>{project.name}<small>Project tasks CSV</small></span>
                     </button>)}
                   </div>
@@ -545,13 +679,19 @@ export default function TrackerApp() {
             </div>
           </div></div>
 
-          <div className="summary-grid">
-            <div className="stat-card"><span className="stat-heading"><ListTodo size={16} />Active tasks</span><div className="stat-number">{taskCount}</div><span className="stat-foot">{activeTab === "all" ? "Across all projects" : "In this project"}</span></div>
-            <div className="stat-card"><span className="stat-heading"><CalendarDays size={16} />Due today</span><div className="stat-number">{dueToday}</div><span className="stat-foot">Needs attention today</span></div>
+          <div className={`summary-grid ${isMaster && lmsProject ? "summary-grid-five" : ""}`}>
+            <div className="stat-card"><span className="stat-heading"><ListTodo size={16} />Active tasks</span><div className="stat-number">{taskCount}</div><span className="stat-foot">{isMaster ? "Client projects only" : "In this project"}</span></div>
+            <div className="stat-card"><span className="stat-heading"><CalendarDays size={16} />Due today</span><div className="stat-number">{dueToday}</div><span className="stat-foot">{isMaster ? "Client deadlines" : "Needs attention today"}</span></div>
             <div className="stat-card"><span className="stat-heading"><AlertCircle size={16} />Overdue</span><div className="stat-number">{overdueCount}</div><span className="stat-foot">Open tasks past deadline</span></div>
             <div className="stat-card"><span className="stat-heading"><CheckCircle2 size={16} />Completed</span><div className="stat-number">{scopedTasks.filter(t => t.status === "completed").length}</div><span className="stat-foot">Total finished tasks</span></div>
+            {isMaster && lmsProject && <button type="button" className="stat-card stat-link" onClick={() => { setActiveTab(lmsProject.id); setSearch(""); }} aria-label={`Open LMS with ${lmsActiveTasks.length} active tasks`}>
+              <span className="stat-heading"><ListTodo size={16} />LMS active tasks</span><div className="stat-number">{lmsActiveTasks.length}</div><span className="stat-foot">Separate development backlog <ArrowRight size={12}/></span>
+            </button>}
           </div>
 
+          {selectedProject && (selectedProject.name.trim().toLowerCase() === "lms" || modules.some(module => module.project_id === selectedProject.id)) &&
+            <ModuleOverview project={selectedProject} modules={modules} tasks={scopedTasks} editable={editable}
+              onSaved={refresh} onAddTask={moduleId => setTaskDialog({ open: true, task: null, moduleId })} />}
           {!editable && <div className="access-notice"><ShieldCheck size={16} /> You have read-only access. Adding, editing and deleting require an admin account.</div>}
           {editable && !projects.length && !busyLoading && <div className="getting-started">
             <div><strong>Start with your first project</strong><p>Create a project, then add tasks with deadlines and priorities.</p></div>
@@ -563,8 +703,8 @@ export default function TrackerApp() {
           </div>}
           {exportError && <div role="alert" className="alert error-alert content-error"><AlertCircle size={18} />{exportError}<button className="btn btn-light" onClick={() => setExportError(null)}>Dismiss</button></div>}
           {loadError && <div role="alert" className="alert error-alert content-error"><AlertCircle size={18} />{loadError} <button className="btn btn-light" onClick={() => void refresh()}>Retry</button></div>}
-          <div className="workspace-toolbar"><div className="workspace-heading"><h2>Task board</h2><span className="count-badge">{visibleTasks.length} tasks</span></div>
-            <label className="search-box"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} aria-label="Search tasks" placeholder="Search tasks..." /></label>
+          <div className="workspace-toolbar"><div className="workspace-heading"><h2>{isMaster ? "Client project tasks" : isLmsPage ? "LMS task board" : "Task board"}</h2><span className="count-badge">{visibleTasks.length} tasks</span></div>
+            <label className="search-box"><Search size={17} /><input value={search} onChange={e => setSearch(e.target.value)} aria-label="Search tasks" placeholder={isMaster ? "Search client tasks..." : "Search tasks..."} /></label>
           </div>
 
           {busyLoading ? <div className="board-loading"><Loader2 className="spin" size={26} /> Loading tasks...</div> : (
@@ -573,35 +713,69 @@ export default function TrackerApp() {
                 <div className="panel-heading"><div className="panel-heading-title"><div className="heading-icon active-icon"><ListTodo size={16}/></div><div><h3>Active Tasks</h3><span>Sorted by priority, then progress</span></div></div><span className="count-badge">{activeTasks.length}</span></div>
                 <div className="panel-content">
                   {PRIORITIES.map(priority => {
-                    const group = activeTasks.filter(t => t.priority === priority);
+                    const group = shownActiveTasks.filter(t => t.priority === priority);
+                    const totalInPriority = activeTasks.filter(t => t.priority === priority).length;
                     if (!group.length) return null;
-                    return <div key={priority} className="priority-section"><div className="section-title"><span className={`priority-dot ${priority}`} />{priorityText[priority]}<span>{group.length}</span></div>
-                      <div className="task-stack">{group.map(task => <TaskCard key={task.id} task={task} projectName={projectMap.get(task.project_id) ?? "Unknown project"} editable={editable} onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />)}</div>
+                    return <div key={priority} className="priority-section"><div className="section-title"><span className={`priority-dot ${priority}`} />{priorityText[priority]}<span>{totalInPriority}</span></div>
+                      <div className="task-stack">{group.map(task => <TaskCard key={task.id} task={task} projectName={projectMap.get(task.project_id) ?? "Unknown project"} moduleName={task.module_id ? moduleMap.get(task.module_id) : undefined} editable={editable} onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />)}</div>
                     </div>;
                   })}
                   {!activeTasks.length && <EmptyBox title="Nothing in progress" detail={projects.length ? "Add a task or change its status to Pending or In progress." : "Add your first project to start tracking tasks."} />}
+                  {paginateClientBoard && <BoardPagination label="Active tasks" page={currentActivePage} total={activeTasks.length} pageSize={ACTIVE_PAGE_SIZE} onChange={setActivePage} />}
                 </div>
               </section>
               <div className="right-panels">
                 <section className="board-panel">
                   <div className="panel-heading"><div className="panel-heading-title"><div className="heading-icon approval-icon"><Clock3 size={16} /></div><div><h3>Waiting for Approval</h3><span>Ready for review</span></div></div><span className="count-badge">{approvalTasks.length}</span></div>
-                  <div className="panel-content"><div className="task-stack">{approvalTasks.map(task => <TaskCard key={task.id} task={task} projectName={projectMap.get(task.project_id) ?? "Unknown project"} editable={editable} compact onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />)}</div>
-                    {!approvalTasks.length && <EmptyBox title="No approvals pending" detail="Tasks awaiting approval will appear here." />}</div>
+                  <div className="panel-content"><div className="task-stack">{shownApprovalTasks.map(task => <TaskCard key={task.id} task={task} projectName={projectMap.get(task.project_id) ?? "Unknown project"} moduleName={task.module_id ? moduleMap.get(task.module_id) : undefined} editable={editable} compact onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />)}</div>
+                    {!approvalTasks.length && <EmptyBox title="No approvals pending" detail="Tasks awaiting approval will appear here." />}
+                    {paginateClientBoard && <BoardPagination label="Waiting for approval" page={currentApprovalPage} total={approvalTasks.length} pageSize={SIDE_PAGE_SIZE} onChange={setApprovalPage} />}</div>
                 </section>
                 <section className="board-panel">
                   <div className="panel-heading"><div className="panel-heading-title"><div className="heading-icon complete-icon"><CheckCircle2 size={16} /></div><div><h3>Completed Tasks</h3><span>Finished and delivered</span></div></div><span className="count-badge">{completedTasks.length}</span></div>
-                  <div className="panel-content"><div className="task-stack">{completedTasks.map(task => <TaskCard key={task.id} task={task} projectName={projectMap.get(task.project_id) ?? "Unknown project"} editable={editable} compact onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />)}</div>
-                    {!completedTasks.length && <EmptyBox title="No completed tasks yet" detail="Finished tasks will appear in this section." />}</div>
+                  <div className="panel-content"><div className="task-stack">{shownCompletedTasks.map(task => <TaskCard key={task.id} task={task} projectName={projectMap.get(task.project_id) ?? "Unknown project"} moduleName={task.module_id ? moduleMap.get(task.module_id) : undefined} editable={editable} compact onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />)}</div>
+                    {!completedTasks.length && <EmptyBox title="No completed tasks yet" detail="Finished tasks will appear in this section." />}
+                    {paginateClientBoard && <BoardPagination label="Completed tasks" page={currentCompletedPage} total={completedTasks.length} pageSize={SIDE_PAGE_SIZE} onChange={setCompletedPage} />}</div>
                 </section>
               </div>
             </div>
           )}
-          <div className="page-footer">Changes are saved to Supabase and synchronized across signed-in devices. <span>Workboard v1.2</span></div>
+          {isMaster && lmsProject && (
+            <section className="lms-overview" aria-label="LMS tasks overview">
+              <div className="lms-overview-heading">
+                <div>
+                  <div className="eyebrow">DEVELOPMENT BACKLOG</div>
+                  <div className="workspace-heading"><h2>LMS tasks</h2><span className="count-badge">{lmsTasks.length} tasks</span></div>
+                  <p>Tracked separately from client projects.</p>
+                </div>
+                <button type="button" className="btn btn-light" onClick={() => { setActiveTab(lmsProject.id); setSearch(""); }}>
+                  View all LMS tasks <ArrowRight size={15} />
+                </button>
+              </div>
+              <div className="lms-overview-stats">
+                <span><span className="priority-dot high"/> {lmsActiveTasks.length} active</span>
+                <span><Clock3 size={14}/> {lmsWaitingCount} awaiting approval</span>
+                <span><CheckCircle2 size={14}/> {lmsCompletedCount} completed</span>
+              </div>
+              <div className="lms-preview-list">
+                {lmsActiveTasks.slice(0, 6).map(task => (
+                  <TaskCard key={task.id} task={task} projectName="LMS" moduleName={task.module_id ? moduleMap.get(task.module_id) : undefined}
+                    editable={editable} compact onEdit={task => setTaskDialog({ open: true, task })} onStatusChange={setStatus} />
+                ))}
+                {lmsActiveTasks.length === 0 && <EmptyBox title="No active LMS tasks" detail="Open LMS to view its full development backlog and modules." />}
+              </div>
+              {lmsActiveTasks.length > 6 && <button type="button" className="lms-preview-more" onClick={() => { setActiveTab(lmsProject.id); setSearch(""); }}>
+                + {lmsActiveTasks.length - 6} more active LMS tasks <ArrowRight size={14}/>
+              </button>}
+            </section>
+          )}
+          <div className="page-footer">Changes are saved to Supabase and synchronized across signed-in devices. <span>Workboard v1.5</span></div>
         </div>
       </main>
       {voiceOpen && <VoiceAssistant projects={projects} existingTasks={tasks} onClose={() => setVoiceOpen(false)} onSaved={refresh}/>}
-      {taskDialog.open && <TaskDialog key={taskDialog.task?.id ?? `new-${activeTab}`} initial={taskDialog.task}
+      {taskDialog.open && <TaskDialog key={taskDialog.task?.id ?? `new-${activeTab}-${taskDialog.moduleId ?? ""}`} initial={taskDialog.task}
         projects={selectedProject ? [selectedProject, ...projects.filter(p => p.id !== selectedProject.id)] : projects}
+        modules={modules} preferredModuleId={taskDialog.moduleId}
         onClose={() => setTaskDialog({ open: false, task: null })} onSave={saveTask} onDelete={deleteTask} />}
       {projectDialog.open && <ProjectDialog key={projectDialog.project?.id ?? "new"} initial={projectDialog.project}
         onClose={() => setProjectDialog({ open: false, project: null })} onSave={saveProject} onDelete={deleteProject} />}
